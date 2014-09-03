@@ -1,0 +1,35 @@
+{
+  "name": "docker-compute",
+  "version": "1.0.0",
+  "description": "queue batch jobs for docker containers",
+  "main": "index.js",
+  "dependencies": {
+    "level": "~0.18.0",
+    "level-sublevel": "~6.3.11"
+  },
+  "devDependencies": {
+    "tape": "^2.13.2"
+  },
+  "scripts": {
+    "test": "tape test/*.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/substack/docker-compute.git"
+  },
+  "homepage": "https://github.com/substack/docker-compute",
+  "keywords": [
+    "batch",
+    "compute",
+    "queue",
+    "jobs",
+    "computing",
+    "docker"
+  ],
+  "author": {
+    "name": "James Halliday",
+    "email": "mail@substack.net",
+    "url": "http://substack.net"
+  },
+  "license": "MIT"
+}
