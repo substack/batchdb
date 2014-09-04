@@ -4,8 +4,11 @@ var bytewise = require('bytewise');
 var inherits = require('inherits');
 var through = require('through2');
 var EventEmitter = require('events').EventEmitter;
-var extend = require('xtend');
 var defined = require('defined');
+var spawn = require('child_process').spawn;
+var multiplex = require('multiplex');
+
+var defaultShell = /^win/.test(process.platform) ? 'cmd' : 'sh';
 
 module.exports = Compute;
 inherits(Compute, EventEmitter);
@@ -19,6 +22,7 @@ function Compute (db, opts) {
         valueEncoding: 'json'
     });
     this.store = blobs(opts);
+    this.shell = defined(opts.shell, process.env.SHELL, defaultShell);
 }
 
 Compute.prototype.create = function (sh, meta, cb) {
@@ -36,16 +40,14 @@ Compute.prototype.create = function (sh, meta, cb) {
     if (!meta) meta = {};
     
     var w = self.store.createWriteStream();
-    w.on('close', function () {
+    w.once('close', function () {
         var now = Date.now();
-        var job = extend({ date: now }, meta);
-        var rank = defined(job.rank, now);
+        var rank = defined(meta.rank, now);
         
         self.db.batch([
-            { type: 'put', key: [ 'job', w.key ], value: job },
             { type: 'put', key: [ 'pending', rank, w.key, now ], value: 0 }
         ], function (err) {
-            self.emit('create', w.key, job);
+            self.emit('create', w.key);
             if (cb) cb(err);
         });
     });
@@ -65,9 +67,36 @@ Compute.prototype.run = function () {
             self.once('create', function (key) { onkey(null, key) });
         }
         else {
-            console.log(err, key);
+            self.start(key, function () {
+                self.next(onkey);
+            });
         }
     });
+};
+
+Compute.prototype.start = function (key, cb) {
+    var sh = this.store.createReadStream(key);
+    var ps = spawn(this.shell);
+    sh.pipe(ps.stdin);
+    
+    var w = this.store.createWriteStream();
+    var m = multiplex();
+    m.pipe(w);
+    w.once('close', function () {
+        db.batch([
+            { type: 'del', key: key },
+            { type: 'put', key: [ 'result', key[2], w.key ], value: 0 }
+        ], done);
+    });
+    ps.stdout.pipe(m.createStream(1));
+    ps.stderr.pipe(m.createStream(2));
+    
+    function done () {
+        self.emit('result', key[2], w.key);
+        if (cb) cb(null, w.key);
+    }
+    
+    this.emit('start', key[2]);
 };
 
 Compute.prototype.next = function (cb) {
@@ -85,7 +114,7 @@ Compute.prototype.next = function (cb) {
     s.pipe(through.obj(write, end));
     
     function write (row, enc, next) {
-        cb(null, row.key[2]);
+        cb(null, row.key);
     }
     function end () {
         cb(null, undefined);
