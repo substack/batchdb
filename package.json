@@ -1,11 +1,17 @@
 {
-  "name": "docker-compute",
+  "name": "shell-compute",
   "version": "1.0.0",
-  "description": "queue batch jobs for docker containers",
+  "description": "queue batch jobs represented as shell commands",
   "main": "index.js",
   "dependencies": {
+    "bytewise": "~0.7.1",
+    "content-addressable-blob-store": "^4.0.3",
+    "defined": "0.0.0",
+    "inherits": "^2.0.1",
     "level": "~0.18.0",
-    "level-sublevel": "~6.3.11"
+    "level-sublevel": "^6.3.11",
+    "through2": "^0.6.1",
+    "xtend": "^4.0.0"
   },
   "devDependencies": {
     "tape": "^2.13.2"
