@@ -11,6 +11,7 @@
     "level": "~0.18.0",
     "level-sublevel": "^6.3.11",
     "multiplex": "^3.0.0",
+    "shell-quote": "^1.4.2",
     "through2": "^0.6.1"
   },
   "devDependencies": {

@@ -7,6 +7,7 @@ var EventEmitter = require('events').EventEmitter;
 var defined = require('defined');
 var spawn = require('child_process').spawn;
 var multiplex = require('multiplex');
+var parseShell = require('shell-quote').parse;
 
 var defaultShell = /^win/.test(process.platform) ? 'cmd' : 'sh';
 
@@ -22,7 +23,11 @@ function Compute (db, opts) {
         valueEncoding: 'json'
     });
     this.store = blobs(opts);
+    
     this.shell = defined(opts.shell, process.env.SHELL, defaultShell);
+    if (typeof this.shell === 'string') {
+        this.shell = parseShell(this.shell);
+    }
 }
 
 Compute.prototype.create = function (sh, meta, cb) {
@@ -75,28 +80,35 @@ Compute.prototype.run = function () {
 };
 
 Compute.prototype.start = function (key, cb) {
-    var sh = this.store.createReadStream(key);
-    var ps = spawn(this.shell);
+    var self = this;
+    var sh = self.store.createReadStream({ key: key });
+    var ps = spawn(self.shell[0], self.shell.slice(1));
     sh.pipe(ps.stdin);
     
-    var w = this.store.createWriteStream();
+    var w = self.store.createWriteStream();
     var m = multiplex();
     m.pipe(w);
+    
     w.once('close', function () {
-        db.batch([
+        self.db.batch([
             { type: 'del', key: key },
-            { type: 'put', key: [ 'result', key[2], w.key ], value: 0 }
+            { type: 'put', key: [ 'result', key, w.key ], value: 0 }
         ], done);
     });
     ps.stdout.pipe(m.createStream(1));
     ps.stderr.pipe(m.createStream(2));
     
+    var pending = 2;
+    function onend () { if (--pending === 0) m.end() }
+    ps.stdout.once('end', onend);
+    ps.stderr.once('end', onend);
+    
     function done () {
-        self.emit('result', key[2], w.key);
+        self.emit('result', key, w.key);
         if (cb) cb(null, w.key);
     }
     
-    this.emit('start', key[2]);
+    self.emit('start', key);
 };
 
 Compute.prototype.next = function (cb) {
@@ -114,7 +126,7 @@ Compute.prototype.next = function (cb) {
     s.pipe(through.obj(write, end));
     
     function write (row, enc, next) {
-        cb(null, row.key);
+        cb(null, row.key[2]);
     }
     function end () {
         cb(null, undefined);
