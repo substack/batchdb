@@ -1,20 +1,19 @@
 {
-  "name": "shell-compute",
+  "name": "batchdb",
   "version": "1.0.0",
-  "description": "queue batch jobs represented as shell commands",
+  "description": "leveldb and disk storage for queued batch jobs",
   "main": "index.js",
   "dependencies": {
     "bytewise": "~0.7.1",
     "content-addressable-blob-store": "^4.0.3",
-    "defined": "0.0.0",
+    "defined": "~0.0.0",
     "inherits": "^2.0.1",
     "level": "~0.18.0",
     "level-sublevel": "^6.3.11",
-    "multiplex": "^3.0.0",
-    "shell-quote": "^1.4.2",
     "through2": "^0.6.1"
   },
   "devDependencies": {
+    "duplexer": "^0.1.1",
     "tape": "^2.13.2"
   },
   "scripts": {

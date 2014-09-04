@@ -5,11 +5,6 @@ var inherits = require('inherits');
 var through = require('through2');
 var EventEmitter = require('events').EventEmitter;
 var defined = require('defined');
-var spawn = require('child_process').spawn;
-var multiplex = require('multiplex');
-var parseShell = require('shell-quote').parse;
-
-var defaultShell = /^win/.test(process.platform) ? 'cmd' : 'sh';
 
 module.exports = Compute;
 inherits(Compute, EventEmitter);
@@ -18,29 +13,23 @@ function Compute (db, opts) {
     if (!(this instanceof Compute)) return new Compute(db, opts);
     if (!opts) opts = {};
     
+    if (typeof opts.run !== 'function') {
+        throw new Error('opts.run parameter required');
+    }
+    this.runner = opts.run;
+    
     this.db = sublevel(db, {
         keyEncoding: bytewise,
         valueEncoding: 'json'
     });
-    this.store = blobs(opts);
-    
-    this.shell = defined(opts.shell, process.env.SHELL, defaultShell);
-    if (typeof this.shell === 'string') {
-        this.shell = parseShell(this.shell);
-    }
+    this.store = opts.store || blobs(opts);
 }
 
-Compute.prototype.create = function (sh, meta, cb) {
+Compute.prototype.create = function (meta, cb) {
     var self = this;
-    if (typeof sh === 'object') {
+    if (typeof meta === 'function') {
         cb = meta;
-        meta = sh;
-        sh = null;
-    }
-    if (typeof sh === 'function') {
-        cb = sh;
         meta = {};
-        sh = null;
     }
     if (!meta) meta = {};
     
@@ -57,7 +46,6 @@ Compute.prototype.create = function (sh, meta, cb) {
             if (cb) cb(err);
         });
     });
-    if (sh) w.end(sh);
     return w;
 };
 
@@ -85,13 +73,15 @@ Compute.prototype.run = function () {
 Compute.prototype.start = function (pkey, cb) {
     var key = pkey[2];
     var self = this;
-    var sh = self.store.createReadStream({ key: key });
-    var ps = spawn(self.shell[0], self.shell.slice(1));
-    sh.pipe(ps.stdin);
-    
+    var r = self.store.createReadStream({ key: key });
     var w = self.store.createWriteStream();
-    var m = multiplex();
-    m.pipe(w);
+    
+    var run = self.runner(key);
+    if (!run || typeof run.pipe !== 'function') {
+        self.emit('error', new Error('runner return value not a stream'));
+        return;
+    }
+    r.pipe(run).pipe(w);
     
     w.once('close', function () {
         self.db.batch([
@@ -99,13 +89,6 @@ Compute.prototype.start = function (pkey, cb) {
             { type: 'put', key: [ 'result', key, w.key ], value: 0 }
         ], done);
     });
-    ps.stdout.pipe(m.createStream(1));
-    ps.stderr.pipe(m.createStream(2));
-    
-    var pending = 2;
-    function onend () { if (--pending === 0) m.end() }
-    ps.stdout.once('end', onend);
-    ps.stderr.once('end', onend);
     
     function done (err) {
         if (err) return self.emit('error', err);
