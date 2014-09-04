@@ -12,10 +12,6 @@ inherits(Compute, EventEmitter);
 function Compute (db, opts) {
     if (!(this instanceof Compute)) return new Compute(db, opts);
     if (!opts) opts = {};
-    
-    if (typeof opts.run !== 'function') {
-        throw new Error('opts.run parameter required');
-    }
     this.runner = opts.run;
     
     this.db = sublevel(db, {
@@ -76,6 +72,9 @@ Compute.prototype.start = function (pkey, cb) {
     var r = self.store.createReadStream({ key: key });
     var w = self.store.createWriteStream();
     
+    if (typeof self.runner !== 'function') {
+        throw new Error('provided runner is not a function');
+    }
     var run = self.runner(key);
     if (!run || typeof run.pipe !== 'function') {
         self.emit('error', new Error('runner return value not a stream'));
