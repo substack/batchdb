@@ -48,11 +48,12 @@ Compute.prototype.create = function (sh, meta, cb) {
     w.once('close', function () {
         var now = Date.now();
         var rank = defined(meta.rank, now);
+        var pkey = [ 'pending', rank, w.key, now ];
         
         self.db.batch([
-            { type: 'put', key: [ 'pending', rank, w.key, now ], value: 0 }
+            { type: 'put', key: pkey, value: 0 },
         ], function (err) {
-            self.emit('create', w.key);
+            self.emit('create', w.key, pkey);
             if (cb) cb(err);
         });
     });
@@ -69,7 +70,9 @@ Compute.prototype.run = function () {
             self.emit('error', err);
         }
         else if (!key) {
-            self.once('create', function (key) { onkey(null, key) });
+            self.once('create', function (key, pkey) {
+                onkey(null, pkey);
+            });
         }
         else {
             self.start(key, function () {
@@ -79,7 +82,8 @@ Compute.prototype.run = function () {
     });
 };
 
-Compute.prototype.start = function (key, cb) {
+Compute.prototype.start = function (pkey, cb) {
+    var key = pkey[2];
     var self = this;
     var sh = self.store.createReadStream({ key: key });
     var ps = spawn(self.shell[0], self.shell.slice(1));
@@ -91,7 +95,7 @@ Compute.prototype.start = function (key, cb) {
     
     w.once('close', function () {
         self.db.batch([
-            { type: 'del', key: key },
+            { type: 'del', key: pkey },
             { type: 'put', key: [ 'result', key, w.key ], value: 0 }
         ], done);
     });
@@ -103,7 +107,8 @@ Compute.prototype.start = function (key, cb) {
     ps.stdout.once('end', onend);
     ps.stderr.once('end', onend);
     
-    function done () {
+    function done (err) {
+        if (err) return self.emit('error', err);
         self.emit('result', key, w.key);
         if (cb) cb(null, w.key);
     }
@@ -126,7 +131,7 @@ Compute.prototype.next = function (cb) {
     s.pipe(through.obj(write, end));
     
     function write (row, enc, next) {
-        cb(null, row.key[2]);
+        cb(null, row.key);
     }
     function end () {
         cb(null, undefined);
