@@ -5,7 +5,6 @@ var inherits = require('inherits');
 var through = require('through2');
 var EventEmitter = require('events').EventEmitter;
 var defined = require('defined');
-var optionPrefix = require('level-option-prefix');
 var extend = require('xtend');
 
 module.exports = Compute;
@@ -230,32 +229,22 @@ Compute.prototype.pending = function (jkey, xopts) {
     ;
 };
 
-Compute.prototype.results = function (jkey, xopts) {
+Compute.prototype.results = function (xopts) {
     var self = this;
-    if (typeof jkey === 'object') {
-        xopts = jkey;
-        jkey = undefined;
-    }
     if (!xopts) xopts = {};
     
-    var opts;
-    if (jkey) {
-        opts = optionPrefix([ 'result', jkey ], xopts, {
-            gt: null,
-            lt: undefined
-        });
-    }
-    else {
-        opts = optionPrefix([ 'result' ], xopts, {
-            gt: null,
-            lt: undefined
-        });
-    }
+    var opts = {
+        gt: [ 'result', null ],
+        lt: [ 'result', undefined ]
+    };
     return self.db.createReadStream(opts)
         .pipe(through.obj(function (row, enc, next) {
-            this.push(extend(row.value, {
-                created: row.key[2]
-            }));
+            this.push({
+                key: row.key.slice(1),
+                value: extend(row.value, {
+                    created: row.key[2]
+                })
+            });
             next();
         }))
     ;
