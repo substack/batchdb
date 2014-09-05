@@ -73,7 +73,7 @@ function fake () {
         else if (line === 'sleep 1; echo beep boop') {
             this.push('beep boop\n');
         }
-        next();
+        setTimeout(next, 1000);
     });
     input.pipe(output);
     return duplexer(input, output);
