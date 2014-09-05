@@ -182,7 +182,14 @@ Compute.prototype.next = function (cb) {
     }
 };
 
-Compute.prototype.jobs = function (xopts) {
+Compute.prototype.list = function (type, xopts) {
+    var self = this;
+    if (type === 'job') return this._jobs(xopts)
+    else if (type === 'pending') return this._pending(xopts)
+    else if (type === 'result') return this._results(xopts)
+};
+
+Compute.prototype._jobs = function (xopts) {
     var self = this;
     var opts = {
         gt: [ 'job', null ],
@@ -199,22 +206,12 @@ Compute.prototype.jobs = function (xopts) {
     ;
 };
 
-Compute.prototype.pending = function (jkey, xopts) {
+Compute.prototype._pending = function (xopts) {
     var self = this;
-    if (typeof jkey === 'object') {
-        xopts = jkey;
-        jkey = undefined;
-    }
-    var opts = jkey
-        ? {
-            gt: [ 'pending-job', jkey, null ],
-            lt: [ 'pending-job', jkey, undefined ]
-        }
-        : {
-            gt: [ 'pending', null ],
-            lt: [ 'pending', undefined ]
-        }
-    ;
+    var opts = {
+        gt: [ 'pending', null ],
+        lt: [ 'pending', undefined ]
+    };
     return self.db.createReadStream(opts)
         .pipe(through.obj(function (row, enc, next) {
             var created = row.key[1], jobkey = row.key[2];
@@ -229,7 +226,7 @@ Compute.prototype.pending = function (jkey, xopts) {
     ;
 };
 
-Compute.prototype.results = function (xopts) {
+Compute.prototype._results = function (xopts) {
     var self = this;
     if (!xopts) xopts = {};
     
