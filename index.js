@@ -5,8 +5,8 @@ var inherits = require('inherits');
 var through = require('through2');
 var EventEmitter = require('events').EventEmitter;
 var defined = require('defined');
+var optionPrefix = require('level-option-prefix');
 var extend = require('xtend');
-var shasum = require('shasum');
 
 module.exports = Compute;
 inherits(Compute, EventEmitter);
@@ -225,6 +225,37 @@ Compute.prototype.pending = function (jkey, xopts) {
                 created: created,
                 running: Boolean(running && running[created])
             });
+            next();
+        }))
+    ;
+};
+
+Compute.prototype.results = function (jkey, xopts) {
+    var self = this;
+    if (typeof jkey === 'object') {
+        xopts = jkey;
+        jkey = undefined;
+    }
+    if (!xopts) xopts = {};
+    
+    var opts;
+    if (jkey) {
+        opts = optionPrefix([ 'result', jkey ], xopts, {
+            gt: null,
+            lt: undefined
+        });
+    }
+    else {
+        opts = optionPrefix([ 'result' ], xopts, {
+            gt: null,
+            lt: undefined
+        });
+    }
+    return self.db.createReadStream(opts)
+        .pipe(through.obj(function (row, enc, next) {
+            this.push(extend(row.value, {
+                created: row.key[2]
+            }));
             next();
         }))
     ;
