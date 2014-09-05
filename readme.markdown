@@ -104,6 +104,15 @@ var batchdb = require('batchdb')
 
 ## var compute = batchdb(db, opts)
 
+Create a batchdb instance, `compute` from a leveldb handle `db` and some
+options:
+
+* `opts.store` - specify a
+[blob store](https://npmjs.org/package/abstract-blob-store).
+By defaut,
+[content-addressable-blob-store](https://www.npmjs.org/package/content-addressable-blob-store)
+is used on `opts.path`.
+
 ## var ws = compute.create(cb)
 
 Create a new job from the payload written to the writable stream `ws`.
