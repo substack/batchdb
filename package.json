@@ -8,14 +8,15 @@
     "content-addressable-blob-store": "^4.0.3",
     "defined": "~0.0.0",
     "inherits": "^2.0.1",
-    "level": "~0.18.0",
     "level-sublevel": "^6.3.11",
-    "shasum": "^1.0.0",
     "through2": "^0.6.1",
     "xtend": "^4.0.0"
   },
   "devDependencies": {
+    "concat-stream": "^1.4.6",
     "duplexer": "^0.1.1",
+    "level": "~0.18.0",
+    "mkdirp": "^0.5.0",
     "tape": "^2.13.2"
   },
   "scripts": {
