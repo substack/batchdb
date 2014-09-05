@@ -10,7 +10,8 @@
     "inherits": "^2.0.1",
     "level": "~0.18.0",
     "level-sublevel": "^6.3.11",
-    "through2": "^0.6.1"
+    "through2": "^0.6.1",
+    "xtend": "^4.0.0"
   },
   "devDependencies": {
     "duplexer": "^0.1.1",

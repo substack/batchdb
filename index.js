@@ -5,6 +5,7 @@ var inherits = require('inherits');
 var through = require('through2');
 var EventEmitter = require('events').EventEmitter;
 var defined = require('defined');
+var extend = require('xtend');
 
 module.exports = Compute;
 inherits(Compute, EventEmitter);
@@ -19,6 +20,7 @@ function Compute (db, opts) {
         valueEncoding: 'json'
     });
     this.store = opts.store || blobs(opts);
+    this.running = {};
 }
 
 Compute.prototype.create = function (meta, cb) {
@@ -28,15 +30,28 @@ Compute.prototype.create = function (meta, cb) {
         meta = {};
     }
     if (!meta) meta = {};
+    var last, frac = 1;
     
     var w = self.store.createWriteStream();
     w.once('close', function () {
         var now = Date.now();
+        if (last === now) {
+            last = now;
+            frac /= 2;
+            now += frac;
+        }
+        else {
+            last = now;
+            frac = 1;
+        }
+        
         var rank = defined(meta.rank, now);
         var pkey = [ 'pending', rank, w.key, now ];
+        var jkey = [ 'job', w.key, now ];
         
         self.db.batch([
             { type: 'put', key: pkey, value: 0 },
+            { type: 'put', key: jkey, value: {} }
         ], function (err) {
             self.emit('create', w.key, pkey);
             if (cb) cb(err);
@@ -47,7 +62,6 @@ Compute.prototype.create = function (meta, cb) {
 
 Compute.prototype.run = function () {
     var self = this;
-    self.running = true;
     
     self.next(function onkey (err, key) {
         if (err) {
@@ -71,10 +85,13 @@ Compute.prototype.start = function (pkey, cb) {
     var self = this;
     var r = self.store.createReadStream({ key: key });
     var w = self.store.createWriteStream();
+    this.running[key] = true;
     
     if (typeof self.runner !== 'function') {
         throw new Error('provided runner is not a function');
     }
+    
+    var start = Date.now();
     var run = self.runner(key);
     if (!run || typeof run.pipe !== 'function') {
         self.emit('error', new Error('runner return value not a stream'));
@@ -83,9 +100,21 @@ Compute.prototype.start = function (pkey, cb) {
     r.pipe(run).pipe(w);
     
     w.once('close', function () {
+        var end = Date.now();
+        delete self.running[key];
+        
         self.db.batch([
             { type: 'del', key: pkey },
-            { type: 'put', key: [ 'result', key, w.key ], value: 0 }
+            {
+                type: 'put',
+                key: [ 'job', key, pkey[3] ],
+                value: { result: w.key }
+            },
+            {
+                type: 'put',
+                key: [ 'result', key, w.key ],
+                value: { start: start, end: end }
+            }
         ], done);
     });
     
@@ -118,4 +147,22 @@ Compute.prototype.next = function (cb) {
     function end () {
         cb(null, undefined);
     }
+};
+
+Compute.prototype.list = function (type) {
+    var self = this;
+    var opts = {
+        gt: [ 'job', null ],
+        lt: [ 'job', undefined ]
+    };
+    return self.db.createReadStream(opts)
+        .pipe(through.obj(function f (row, enc, next) {
+            this.push(extend(row.value, {
+                running: Boolean(self.running[row.key[2]]),
+                key: row.key[2],
+                created: row.key[1]
+            }));
+            next();
+        }))
+    ;
 };
