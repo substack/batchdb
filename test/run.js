@@ -1,11 +1,12 @@
 var test = require('tape');
 var batchdb = require('../');
 var mkdirp = require('mkdirp');
-var os = require('os');
 var path = require('path');
-var spawn = require('child_process').spawn;
 var duplexer = require('duplexer');
 var concat = require('concat-stream');
+var through = require('through2');
+var split = require('split');
+var os = require('os');
 
 var tmpdir = path.join((os.tmpdir || os.tmpDir)(), 'batchdb.' + Math.random());
 mkdirp.sync(tmpdir);
@@ -23,16 +24,16 @@ var expected = [
     'sleep 1; echo beep boop',
     [ 'PUSH', 'cda14a731876c0775efc30845bd3a8514e87502afb19919de858afed91e6adc0' ],
     [ 'RESULT', 'c0320d2f8e6fcee8145cdf7a8cb0fe11bf5820e44390097300adf05ad0ddbca5' ],
-    os.hostname() + '\n',
+    'beep\n',
     [ 'RESULT', '3435bb0065250a67c226fdcb1aefab113b738d17e4f43004b9b9d642e31fec10' ],
-    __dirname + '\n',
+    '/home/robots\n',
     [ 'RESULT', 'cda14a731876c0775efc30845bd3a8514e87502afb19919de858afed91e6adc0' ],
     'beep boop\n'
 ];
 
 test('run', function (t) {
     t.plan(expected.length);
-    var compute = batchdb(db, { path: path.join(tmpdir, 'blobs'), run: run });
+    var compute = batchdb(db, { path: path.join(tmpdir, 'blobs'), run: fake });
     
     compute.on('create', function (key) {
         t.deepEqual([ 'CREATE', key ], expected.shift());
@@ -57,9 +58,23 @@ test('run', function (t) {
     compute.add().end('sleep 1; echo beep boop');
     
     compute.run();
-    
-    function run (key) {
-        var ps = spawn('bash', [], { cwd: __dirname });
-        return duplexer(ps.stdin, ps.stdout);
-    }
 });
+
+function fake () {
+    var input = split();
+    var output = through(function (buf, enc, next) {
+        var line = buf.toString('utf8');
+        if (line === 'sleep 1; hostname') {
+            this.push('beep\n');
+        }
+        else if (line === 'sleep 1; pwd') {
+            this.push('/home/robots\n');
+        }
+        else if (line === 'sleep 1; echo beep boop') {
+            this.push('beep boop\n');
+        }
+        next();
+    });
+    input.pipe(output);
+    return duplexer(input, output);
+}
