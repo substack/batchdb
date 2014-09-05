@@ -21,6 +21,7 @@ function Compute (db, opts) {
         valueEncoding: 'json'
     });
     this.store = opts.store || blobs(opts);
+    
     this.running = {};
 }
 
@@ -67,12 +68,12 @@ Compute.prototype.add = function (cb) {
         var now = Date.now();
         var rows = [
             {
-                type: 'pending',
+                type: 'put',
                 key: [ 'pending', now, w.key ],
                 value: 0
             },
             {
-                type: 'pending',
+                type: 'put',
                 key: [ 'pending-job', w.key, now ],
                 value: 0
             },
@@ -83,12 +84,10 @@ Compute.prototype.add = function (cb) {
             }
         ];
         self.db.batch(rows, function (err) {
-            if (err) cb(err)
-            else {
-                self.emit('create', w.key);
-                self.emit('push', w.key, now);
-                if (cb) cb(null, w.key, now);
-            }
+            if (err) return cb(err)
+            self.emit('create', w.key);
+            self.emit('push', w.key, now);
+            if (cb) cb(null, w.key, now);
         });
     });
     return w;
@@ -120,7 +119,9 @@ Compute.prototype.exec = function (pkey, cb) {
     var created = pkey[1], jobkey = pkey[2];
     var r = self.store.createReadStream({ key: jobkey });
     var w = self.store.createWriteStream();
-    this.running[jobkey] = (this.running[jobkey] || 0) + 1;
+    
+    if (!this.running[jobkey]) this.running[jobkey] = [];
+    this.running[jobkey].push(created);
     
     if (typeof self.runner !== 'function') {
         throw new Error('provided runner is not a function');
@@ -136,7 +137,9 @@ Compute.prototype.exec = function (pkey, cb) {
     
     w.once('close', function () {
         var end = Date.now();
-        if (-- self.running[jobkey] === 0) delete self.running[jobkey];
+        var ix = self.running[jobkey].indexOf(created);
+        if (ix >= 0) self.running[jobkey].splice(ix, 1);
+        if (self.running[jobkey].length === 0) delete self.running[jobkey];
         
         self.db.batch([
             { type: 'del', key: pkey },
@@ -151,11 +154,11 @@ Compute.prototype.exec = function (pkey, cb) {
     
     function done (err) {
         if (err) return self.emit('error', err);
-        self.emit('result', key, w.key);
+        self.emit('result', jobkey, w.key, created);
         if (cb) cb(null, w.key);
     }
     
-    self.emit('start', key);
+    self.emit('start', jobkey, created);
 };
 
 Compute.prototype.next = function (cb) {
@@ -180,20 +183,57 @@ Compute.prototype.next = function (cb) {
     }
 };
 
-Compute.prototype.list = function (type) {
+Compute.prototype.jobs = function (xopts) {
     var self = this;
     var opts = {
         gt: [ 'job', null ],
         lt: [ 'job', undefined ]
     };
     return self.db.createReadStream(opts)
-        .pipe(through.obj(function f (row, enc, next) {
-            this.push(extend(row.value, {
-                running: defined(self.running[row.key[2]], false),
+        .pipe(through.obj(function (row, enc, next) {
+            this.push({
                 key: row.key[1],
-                created: row.key[2]
-            }));
+                running: self.running[row.key[1]] || []
+            });
             next();
         }))
     ;
+};
+
+Compute.prototype.pending = function (jkey, xopts) {
+    var self = this;
+    if (typeof jkey === 'object') {
+        xopts = jkey;
+        jkey = undefined;
+    }
+    var opts = jkey
+        ? {
+            gt: [ 'pending-job', jkey, null ],
+            lt: [ 'pending-job', jkey, undefined ]
+        }
+        : {
+            gt: [ 'pending', null ],
+            lt: [ 'pending', undefined ]
+        }
+    ;
+    return self.db.createReadStream(opts)
+        .pipe(through.obj(function (row, enc, next) {
+            var created = row.key[1], jobkey = row.key[2];
+            var running = self.running[jobkey];
+            this.push({
+                job: jobkey,
+                created: created,
+                running: Boolean(running && running[created])
+            });
+            next();
+        }))
+    ;
+};
+
+Compute.prototype.getJob = function (jobkey) {
+    return this.store.createReadStream({ key: jobkey });
+};
+
+Compute.prototype.getResult = function (rkey) {
+    return this.store.createReadStream({ key: rkey });
 };

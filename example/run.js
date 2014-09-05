@@ -10,7 +10,8 @@ function run (key) {
 }
 
 compute.on('result', function (key, id) {
-    console.log('result', key, id);
+    console.log('RESULT', key, id);
+    compute.getResult(id).pipe(process.stdout);
 });
 
 compute.run();
