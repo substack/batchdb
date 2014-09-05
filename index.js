@@ -85,7 +85,7 @@ Compute.prototype.start = function (pkey, cb) {
     var self = this;
     var r = self.store.createReadStream({ key: key });
     var w = self.store.createWriteStream();
-    this.running[key] = true;
+    this.running[key] = (this.running[key] || 0) + 1;
     
     if (typeof self.runner !== 'function') {
         throw new Error('provided runner is not a function');
@@ -101,7 +101,7 @@ Compute.prototype.start = function (pkey, cb) {
     
     w.once('close', function () {
         var end = Date.now();
-        delete self.running[key];
+        if (-- self.running[key] === 0) delete self.running[key];
         
         self.db.batch([
             { type: 'del', key: pkey },
@@ -158,9 +158,9 @@ Compute.prototype.list = function (type) {
     return self.db.createReadStream(opts)
         .pipe(through.obj(function f (row, enc, next) {
             this.push(extend(row.value, {
-                running: Boolean(self.running[row.key[2]]),
-                key: row.key[2],
-                created: row.key[1]
+                running: defined(self.running[row.key[2]], false),
+                key: row.key[1],
+                created: row.key[2]
             }));
             next();
         }))
