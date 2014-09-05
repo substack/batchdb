@@ -169,6 +169,23 @@ example `result` object:
      created: 1409895158130 } }
 ```
 
+# events
+
+## compute.on('create', function (jobkey) {})
+
+When a new job is created, this event fires with the job key `jobkey`.
+
+## compute.on('push', function (jobkey, created) {})
+
+When a job is pushed to the pending queue, this event fires with the job key
+`jobkey` and an epoch time `created` in milliseconds that uniquely identifies
+the instance of the job.
+
+## compute.on('result', function (jobkey, resultId, created) {})
+
+When a job finishes, this event fires with the `jobkey`, the `resultId`, and the
+`created` time.
+
 # install
 
 With [npm](https://npmjs.org) do:
