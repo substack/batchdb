@@ -2,6 +2,8 @@
 
 queue batch jobs and stream results to a blob store
 
+[![build status](https://secure.travis-ci.org/substack/batchdb.png)](http://travis-ci.org/substack/batchdb)
+
 # example
 
 ## adding a job
