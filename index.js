@@ -6,6 +6,7 @@ var through = require('through2');
 var EventEmitter = require('events').EventEmitter;
 var defined = require('defined');
 var extend = require('xtend');
+var shasum = require('shasum');
 
 module.exports = Compute;
 inherits(Compute, EventEmitter);
@@ -23,38 +24,71 @@ function Compute (db, opts) {
     this.running = {};
 }
 
-Compute.prototype.create = function (meta, cb) {
+Compute.prototype.create = function (cb) {
     var self = this;
-    if (typeof meta === 'function') {
-        cb = meta;
-        meta = {};
-    }
-    if (!meta) meta = {};
-    var last, frac = 1;
-    
+    var w = self.store.createWriteStream();
+    w.once('close', function () {
+        self.put([ 'job', w.key ], 0, function (err) {
+            if (err) return cb && cb(err);
+            self.emit('create', w.key);
+            if (cb) cb(null, w.key);
+        });
+    });
+    return w;
+};
+
+Compute.prototype.push = function (jobkey, cb) {
+    var now = Date.now();
+    var rows = [
+        {
+            type: 'pending',
+            key: [ 'pending', now, jobkey ],
+            value: 0
+        },
+        {
+            type: 'pending',
+            key: [ 'pending-job', jobkey, now ],
+            value: 0
+        }
+    ];
+    self.db.batch(rows, function (err) {
+        if (err) cb(err)
+        else {
+            self.emit('push', jobkey, now);
+            cb(null, jobkey, now);
+        }
+    });
+};
+
+Compute.prototype.add = function (cb) {
+    var self = this;
     var w = self.store.createWriteStream();
     w.once('close', function () {
         var now = Date.now();
-        if (last === now) {
-            last = now;
-            frac /= 2;
-            now += frac;
-        }
-        else {
-            last = now;
-            frac = 1;
-        }
-        
-        var rank = defined(meta.rank, now);
-        var pkey = [ 'pending', rank, w.key, now ];
-        var jkey = [ 'job', w.key, now ];
-        
-        self.db.batch([
-            { type: 'put', key: pkey, value: 0 },
-            { type: 'put', key: jkey, value: {} }
-        ], function (err) {
-            self.emit('create', w.key, pkey);
-            if (cb) cb(err);
+        var rows = [
+            {
+                type: 'pending',
+                key: [ 'pending', now, w.key ],
+                value: 0
+            },
+            {
+                type: 'pending',
+                key: [ 'pending-job', w.key, now ],
+                value: 0
+            },
+            {
+                type: 'put',
+                key: [ 'job', w.key ],
+                value: 0
+            }
+        ];
+        self.db.batch(rows, function (err) {
+            if (err) cb(err)
+            else {
+                self.emit('create', w.key);
+                self.emit('push', w.key, now);
+                if (cb) cb(null, w.key, now);
+            }
         });
     });
     return w;
@@ -73,26 +107,27 @@ Compute.prototype.run = function () {
             });
         }
         else {
-            self.start(key, function () {
+            self.exec(key, function () {
                 self.next(onkey);
             });
         }
     });
 };
 
-Compute.prototype.start = function (pkey, cb) {
-    var key = pkey[2];
+Compute.prototype.exec = function (pkey, cb) {
     var self = this;
-    var r = self.store.createReadStream({ key: key });
+    
+    var created = pkey[1], jobkey = pkey[2];
+    var r = self.store.createReadStream({ key: jobkey });
     var w = self.store.createWriteStream();
-    this.running[key] = (this.running[key] || 0) + 1;
+    this.running[jobkey] = (this.running[jobkey] || 0) + 1;
     
     if (typeof self.runner !== 'function') {
         throw new Error('provided runner is not a function');
     }
     
     var start = Date.now();
-    var run = self.runner(key);
+    var run = self.runner(jobkey, created);
     if (!run || typeof run.pipe !== 'function') {
         self.emit('error', new Error('runner return value not a stream'));
         return;
@@ -101,19 +136,15 @@ Compute.prototype.start = function (pkey, cb) {
     
     w.once('close', function () {
         var end = Date.now();
-        if (-- self.running[key] === 0) delete self.running[key];
+        if (-- self.running[jobkey] === 0) delete self.running[jobkey];
         
         self.db.batch([
             { type: 'del', key: pkey },
+            { type: 'del', key: [ 'pending-job', jobkey, created ] },
             {
                 type: 'put',
-                key: [ 'job', key, pkey[3] ],
-                value: { result: w.key }
-            },
-            {
-                type: 'put',
-                key: [ 'result', key, w.key ],
-                value: { start: start, end: end }
+                key: [ 'result', jobkey, created ],
+                value: { hash: w.key, start: start, end: end }
             }
         ], done);
     });
