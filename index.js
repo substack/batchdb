@@ -94,14 +94,16 @@ Compute.prototype.add = function (cb) {
 
 Compute.prototype.run = function () {
     var self = this;
+    if (self._running) return;
+    self._running = true;
     
     self.next(function onkey (err, key) {
         if (err) {
             self.emit('error', err);
         }
         else if (!key) {
-            self.once('create', function (key, pkey) {
-                onkey(null, pkey);
+            self.once('create', function (ckey) {
+                self.next(onkey);
             });
         }
         else {
