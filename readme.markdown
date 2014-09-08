@@ -169,6 +169,17 @@ example `result` object:
      created: 1409895158130 } }
 ```
 
+## var rs = compute.getResult(id)
+
+Return a readable stream of the results given by the result `id`.
+
+To fetch a result from the `compute.list('result')` stream records, use
+`row.value.hash` as the result `id` to call `compute.getResult(id)`.
+
+## var rs = compute.getJob(jobkey)
+
+Return a readable stream of the job payload for the job identified by `jobkey`.
+
 # events
 
 ## compute.on('create', function (jobkey) {})
