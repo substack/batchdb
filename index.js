@@ -130,18 +130,22 @@ Compute.prototype.run = function () {
 };
 
 Compute.prototype._fail = function (err, cb) {
+    var self = this;
     if (!err.created || !err.created) return self.emit(err);
     
-    this.emit('fail', err);
-    this.db.batch([
+    self.db.batch([
         { type: 'del', key: [ 'pending', err.created, err.job ] },
         { type: 'del', key: [ 'pending-job', err.job, err.created ] },
         {
             type: 'put',
             key: [ 'fail', err.job, err.created ],
-            value: err.message
+            value: { message: err.message }
         }
-    ], cb);
+    ], done);
+    
+    function done (e) {
+        self.emit('fail', err);
+    }
 };
 
 Compute.prototype.exec = function (pkey, cb) {
@@ -227,6 +231,7 @@ Compute.prototype.list = function (type, xopts) {
     if (type === 'job') return this._jobs(xopts)
     else if (type === 'pending') return this._pending(xopts)
     else if (type === 'result') return this._results(xopts)
+    else if (type === 'fail') return this._failures(xopts)
 };
 
 Compute.prototype._jobs = function (xopts) {
@@ -281,6 +286,25 @@ Compute.prototype._results = function (xopts) {
                 value: extend(row.value, {
                     created: row.key[2]
                 })
+            });
+            next();
+        }))
+    ;
+};
+
+Compute.prototype._failures = function (xopts) {
+    var self = this;
+    if (!xopts) xopts = {};
+    
+    var opts = {
+        gt: [ 'fail', null ],
+        lt: [ 'fail', undefined ]
+    };
+    return self.db.createReadStream(opts)
+        .pipe(through.obj(function (row, enc, next) {
+            this.push({
+                key: row.key.slice(1),
+                value: row.value
             });
             next();
         }))

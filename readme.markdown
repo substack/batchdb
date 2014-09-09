@@ -140,6 +140,7 @@ Return a readable object stream `rs` that contains rows for each `type`:
 * `'job'`
 * `'pending'`
 * `'result'`
+* `'list'`
 
 example `job` object:
 
@@ -167,6 +168,14 @@ example `result` object:
      start: 1409895367770,
      end: 1409895372831,
      created: 1409895158130 } }
+```
+
+example `fail` object:
+
+```
+{ key:
+   [ ''
+}
 ```
 
 ## var rs = compute.get(key)
