@@ -28,7 +28,7 @@ Compute.prototype.create = function (cb) {
     var self = this;
     var w = self.store.createWriteStream();
     w.once('close', function () {
-        self.put([ 'job', w.key ], 0, function (err) {
+        self.db.put([ 'job', w.key ], 0, function (err) {
             if (err) return cb && cb(err);
             self.emit('create', w.key);
             if (cb) cb(null, w.key);
