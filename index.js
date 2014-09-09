@@ -107,7 +107,8 @@ Compute.prototype.run = function () {
             });
         }
         else {
-            self.exec(key, function () {
+            self.exec(key, function (err) {
+                if (err) self.emit('error', err);
                 self.next(onkey);
             });
         }
@@ -130,9 +131,10 @@ Compute.prototype.exec = function (pkey, cb) {
     
     var start = Date.now();
     var run = self.runner(jobkey, created);
+    run.on('error', done);
+    
     if (!run || typeof run.pipe !== 'function') {
-        self.emit('error', new Error('runner return value not a stream'));
-        return;
+        return done(new Error('runner return value not a stream'));
     }
     r.pipe(run).pipe(w);
     
@@ -154,7 +156,7 @@ Compute.prototype.exec = function (pkey, cb) {
     });
     
     function done (err) {
-        if (err) return self.emit('error', err);
+        if (err) return cb && cb(err);
         self.emit('result', jobkey, w.key, created);
         if (cb) cb(null, w.key);
     }
