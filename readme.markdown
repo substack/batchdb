@@ -174,8 +174,10 @@ example `fail` object:
 
 ```
 { key:
-   [ ''
-}
+   [ 'fail',
+     '51280dabfbc880cdc5f92cc2f4f22c8032de5aba401c3268250a11eeb2df1f73',
+     1410274490145 ],
+  value: { message: 'yo' } }
 ```
 
 ## var rs = compute.get(key)
