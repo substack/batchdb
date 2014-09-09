@@ -134,7 +134,7 @@ Compute.prototype._fail = function (err, cb) {
     
     this.emit('fail', err);
     this.db.batch([
-        { type: 'del', key: [ 'pending', err.job, err.created ] },
+        { type: 'del', key: [ 'pending', err.created, err.job ] },
         { type: 'del', key: [ 'pending-job', err.job, err.created ] },
         {
             type: 'put',
