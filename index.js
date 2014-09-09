@@ -97,9 +97,11 @@ Compute.prototype.run = function () {
     if (self._running) return;
     self._running = true;
     
-    self.next(function onkey (err, key) {
+    self.next(onkey);
+    
+    function onkey (err, key) {
         if (err) {
-            self.emit('error', err);
+            fail(err);
         }
         else if (!key) {
             self.once('create', function (ckey) {
@@ -108,11 +110,38 @@ Compute.prototype.run = function () {
         }
         else {
             self.exec(key, function (err) {
-                if (err) self.emit('error', err);
-                self.next(onkey);
+                if (err) fail(err)
+                else self.next(onkey)
             });
         }
-    });
+    }
+    
+    function fail (err) {
+        self._fail(err, function (e) {
+            if (e) {
+                self.emit('error', e)
+                setTimeout(function () {
+                    self.next(onkey);
+                }, 1000);
+            }
+            else self.next(onkey);
+        });
+    }
+};
+
+Compute.prototype._fail = function (err, cb) {
+    if (!err.created || !err.created) return self.emit(err);
+    
+    this.emit('fail', err);
+    this.db.batch([
+        { type: 'del', key: [ 'pending', err.job, err.created ] },
+        { type: 'del', key: [ 'pending-job', err.job, err.created ] },
+        {
+            type: 'put',
+            key: [ 'fail', err.job, err.created ],
+            value: err.message
+        }
+    ], cb);
 };
 
 Compute.prototype.exec = function (pkey, cb) {
@@ -121,6 +150,7 @@ Compute.prototype.exec = function (pkey, cb) {
     var created = pkey[1], jobkey = pkey[2];
     var r = self.store.createReadStream({ key: jobkey });
     var w = self.store.createWriteStream();
+    var finished = false;
     
     if (!this.running[jobkey]) this.running[jobkey] = [];
     this.running[jobkey].push(created);
@@ -156,7 +186,13 @@ Compute.prototype.exec = function (pkey, cb) {
     });
     
     function done (err) {
-        if (err) return cb && cb(err);
+        if (finished) return;
+        finished = true;
+        if (err) {
+            err.job = jobkey;
+            err.created = created;
+            return cb && cb(err);
+        }
         self.emit('result', jobkey, w.key, created);
         if (cb) cb(null, w.key);
     }
