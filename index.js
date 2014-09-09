@@ -249,10 +249,16 @@ Compute.prototype._results = function (xopts) {
     ;
 };
 
+Compute.prototype.get = function (key) {
+    return this.store.createReadStream({ key: key });
+};
+
 Compute.prototype.getJob = function (jobkey) {
+    // deprecated, just use get(jobkey)
     return this.store.createReadStream({ key: jobkey });
 };
 
 Compute.prototype.getResult = function (rkey) {
+    // deprecated, just use get(rkey)
     return this.store.createReadStream({ key: rkey });
 };

@@ -38,7 +38,7 @@ test('run', function (t) {
     compute.on('create', function (key) {
         t.deepEqual([ 'CREATE', key ], expected.shift());
         var cex = expected.shift();
-        compute.getJob(key).pipe(concat(function (body) {
+        compute.get(key).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), cex);
         }));
     });
@@ -48,7 +48,7 @@ test('run', function (t) {
     compute.on('result', function (key, id) {
         t.deepEqual([ 'RESULT', key ], expected.shift());
         var rex = expected.shift();
-        compute.getResult(id).pipe(concat(function (body) {
+        compute.get(id).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), rex);
         }));
     });
