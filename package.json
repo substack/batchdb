@@ -1,6 +1,6 @@
 {
   "name": "batchdb",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "leveldb and disk storage for queued batch jobs",
   "main": "index.js",
   "dependencies": {
