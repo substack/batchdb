@@ -27,16 +27,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/substack/docker-compute.git"
+    "url": "git://github.com/substack/batchdb.git"
   },
-  "homepage": "https://github.com/substack/docker-compute",
+  "homepage": "https://github.com/substack/batchdb",
   "keywords": [
     "batch",
     "compute",
     "queue",
     "jobs",
-    "computing",
-    "docker"
+    "computing"
   ],
   "author": {
     "name": "James Halliday",
